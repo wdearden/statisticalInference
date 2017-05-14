@@ -1,0 +1,145 @@
+---
+title: "Effect of vitamin C dose and supplement type on Guinea pig tooth length"
+output: pdf_document
+author: "William Dearden"
+date: "May 14, 2017"
+---
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(grid)
+library(pander)
+
+```
+
+## Overiew
+
+We will analyze the `ToothGrowth` data from R datasets, which contains the results of an experiment investigating the effect of vitamin C dose level and supplement type on Guinea pig tooth length.
+
+`ToothGrowth` contains 60 observations of 3 variables:
+
+* `len`: Tooth length (in millimeters)
+* `supp`: Supplement type (VC or OJ)
+* `dose`: Dose in milligrams/day
+
+The Guinea pigs were randomly assigned to six groups of 10 depending on the dose level (0.5, 1, or 2) and supplement type (orange juice or ascorbic acid).
+
+```{r echo = FALSE}
+
+with(ToothGrowth, table(dose, supp))
+
+```
+
+## Exploratory Data Analysis
+
+Let's investigate how tooth length varies with supplement type and dose level.
+
+```{r echo=FALSE, fig.width=7, fig.height=2.5, fig.align='center'}
+
+p_len_supp <- ggplot(ToothGrowth, aes(supp, len)) + 
+    geom_boxplot() +
+    xlab('Supplement Type') +
+    ylab('Tooth Length (mm)') +
+    ggtitle('Teeth are longer with orange juice \n than ascorbic acid')
+
+p_len_dose <- ggplot(ToothGrowth, aes(as.factor(dose), len)) + 
+    geom_boxplot() +
+    xlab('Dose (mg)') +
+    ylab('Tooth length (mm)') +
+    ggtitle('Tooth length increases \n with dose level')
+
+grid.newpage()
+# Push viewport to graphic device
+pushViewport(viewport(layout = grid.layout(1, 2, widths = c(0.5, 0.5))))
+print(p_len_supp, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(p_len_dose, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+
+```
+
+We can drill down to each treatment group and compare the sample means:
+
+```{r echo = FALSE}
+
+nn=xtabs(~dose+supp,ToothGrowth)
+xtabs(len~dose+supp,ToothGrowth)/nn
+
+```
+
+We can also graph a boxplot of the distribution of tooth lengths within each treatment group:
+
+
+```{r echo=FALSE, fig.width=5, fig.height=3.5}
+
+ggplot(ToothGrowth, aes(as.factor(dose), len)) +
+    geom_boxplot(aes(fill = as.factor(dose))) + 
+    facet_grid(. ~ supp) +
+    xlab('Dose (mg)') +
+    ylab('Tooth Length (mm)') +
+    ggtitle('Tooth Length increases with dose level for each\n supplement type') +
+    theme(legend.position = "none")
+
+```
+
+## Statistical tests
+
+Each treatment group has much fewer than 30 observations, so cannot use the results of the Central Limit Theorem for our statistical test. Instead, we assume:
+
+1. Each Guinea pig was randomly and independently assigned to one of the treatment groups.
+2. The distribution of tooth lengths by group is approximately normal.
+
+Then, the appropriate tests of our hypotheses are t-tests with unequal variances. 
+
+### Supplement type
+
+First, we use a null hypothesis that mean tooth length does not vary with supplement type. Here are the results:
+
+```{r echo=FALSE}
+
+t_diff_supp <- t.test(len ~ supp, ToothGrowth, var.equal = FALSE)
+tidy(t_diff_supp)
+
+```
+
+With a confidence interval of (`r round(t_diff_supp$conf.int[1:2], 3)`) and a p-value of `r t_diff_supp$p.value %>% round(3)`, we cannot reject the null hypothesis that mean tooth length does not vary with supplement type.
+
+### Dose level
+
+Next we explore how much tooth length varies with dose level. While there are more sophisticated methods, we will perform 3 t-tests, one for each pairing of dose levels.
+
+```{r echo = FALSE}
+
+pairwise_results <- t.test(ToothGrowth$len[ToothGrowth$dose == 2],
+       ToothGrowth$len[ToothGrowth$dose == 1]) %>% 
+    tidy %>%
+    mutate(
+        null_hypothesis = 'µ2mg - µ1mg = 0'
+    ) %>% 
+    select(null_hypothesis, 9, 1:8)
+  
+
+pairwise_results <- t.test(ToothGrowth$len[ToothGrowth$dose == 2],
+       ToothGrowth$len[ToothGrowth$dose == 0.5]) %>% 
+    tidy %>%
+    mutate(
+        null_hypothesis = 'µ2mg - µ0.5mg = 0'
+    ) %>% 
+    select(null_hypothesis, 9, 1:8) %>%
+    bind_rows(pairwise_results, .)
+
+pairwise_results <- t.test(ToothGrowth$len[ToothGrowth$dose == 1],
+       ToothGrowth$len[ToothGrowth$dose == 0.5]) %>%
+    tidy %>%
+    mutate(
+        null_hypothesis = 'µ1mg - µ0.5mg = 0'
+    ) %>% 
+    select(null_hypothesis, 9, 1:8) %>%
+    bind_rows(pairwise_results, .)
+
+print.data.frame(pairwise_results)
+
+
+```
+
+With p-values less than 0.5, we can conclude tooth length varies with dose level for each pairing of dose level. For example, with the first test we are able to reject the null hypothesis that mean tooth length for dose level 2 mg is equal to mean tooth length for dose level 1 mg.

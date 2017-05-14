@@ -1,0 +1,66 @@
+---
+title: "Comparison of the exponential distribution and the Central Limit Theorem"
+author: "Will Dearden"
+date: "May 14, 2017"
+output: pdf_document
+---
+
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+
+```
+
+## Overview
+
+In this document we will investigate the exponential distribution in R and compare it with the Central Limit Theorem. We will compare:
+
+1. The sample mean and the theoretical mean of the exponential distribution.
+2. The sample variance of sample means of draws of the exponential distribution and the theoretical variance.
+3. The distribution of sample means of the exponential distribution and the normal distribution implied by the Central Limit Theorem.
+
+### Sample mean vs. Theoretical mean
+We draw 1000 samples of 40 draws from an exponential distribution with $\lambda = 0.2$. The mean of this distribution is $\frac{1}{0.2} = 5$. According to the Law of Large Numbers we expect the mean of the sample means of 40 draws to be very close to 5.
+
+Let's compare them now:
+
+```{r}
+
+set.seed(42)
+
+sample_means <- vector(, 1000)
+for(i in 1:1000) {
+    sample_means[i] <- mean(rexp(40, 0.2))
+}
+mean(sample_means)
+
+```
+
+The sample mean, `r mean(sample_means) %>% round(3)`, is very close to the theoretical mean, 5.
+
+### Sample variance vs. Theoretical variance
+The variance of the exponential distribution with $\lambda = 0.2$ is $\frac{1}{0.2^2} = 25$. The theoretical variance of the mean of 40 draws from the exponential distribution is $25/40 = 0.625$. We test this in R:
+
+```{r}
+var(sample_means)
+```
+
+The result, `r var(sample_means) %>% round(3)`, is close the theoretical variance, 0.625.
+
+### Distribution of sample means vs. Normal distribution
+According to the Central Limit Theorem, we expect the distribution of sample means of 40 draws from $Exp(0.2)$ to be approximately normally distributed with mean 5 and variance 0.625.
+
+```{r fig.height=4, fig.width=4}
+
+means <- data.frame(sample_means)
+
+ggplot(means, aes(x = sample_means)) + 
+    geom_histogram(binwidth = 0.4, color = 'black', fill = 'white', aes(y = ..density..)) +
+    stat_function(fun = dnorm, args = list(mean = 5, sd = sqrt(0.625)), color = "purple") +
+    xlab('Sample mean') +
+    ylab('Density') +
+    ggtitle('Sample distribution approximates \n normal distribution')
+
+```
